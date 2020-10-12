@@ -15,4 +15,6 @@ This is the repository for COSI-241 final project.
 4. Knowledge Graph Embedding
     - A good introduction: https://aws-dglke.readthedocs.io/en/latest/kg.html#
 5. Multi-Hop Reasoning
+    - [Policy Gradient](https://medium.com/@jonathan_hui/rl-policy-gradients-explained-9b13b688b146)
 6. Meta-Learning
+    - A nice tutorial: [Meta-learning is all you need](https://medium.com/cracking-the-data-science-interview/meta-learning-is-all-you-need-3bd0bafdf289)
