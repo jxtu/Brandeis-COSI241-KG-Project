@@ -10,12 +10,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils.convert_parameters import (vector_to_parameters,
-                                               parameters_to_vector)
+from torch.nn.utils.convert_parameters import vector_to_parameters, parameters_to_vector
 
 import src.utils.ops as ops
 from src.utils.ops import var_cuda, zeros_var_cuda
 from collections import OrderedDict
+
 
 class GraphSearchPolicy(nn.Module):
     def __init__(self, args):
@@ -49,11 +49,22 @@ class GraphSearchPolicy(nn.Module):
         self.fn_kg = None
 
     def update_params(self, loss, step_size=0.5, first_order=False):
-        grads = torch.autograd.grad(loss, self.parameters(),
-            create_graph=not first_order)
-        return parameters_to_vector(self.parameters()) - parameters_to_vector(grads) * step_size
+        grads = torch.autograd.grad(
+            loss, self.parameters(), create_graph=not first_order
+        )
+        return (
+            parameters_to_vector(self.parameters())
+            - parameters_to_vector(grads) * step_size
+        )
 
-    def transit(self, e, obs, kg, use_action_space_bucketing=True, merge_aspace_batching_outcome=False):
+    def transit(
+        self,
+        e,
+        obs,
+        kg,
+        use_action_space_bucketing=True,
+        merge_aspace_batching_outcome=False,
+    ):
         """
         Compute the next action distribution based on
             (a) the current node (entity) in KG and the query relation
@@ -108,7 +119,10 @@ class GraphSearchPolicy(nn.Module):
             (r_space, e_space), action_mask = action_space
             A = self.get_action_embedding((r_space, e_space), kg)
             action_dist = F.softmax(
-                torch.squeeze(A @ torch.unsqueeze(X2, 2), 2) - (1 - action_mask) * ops.HUGE_INT, dim=-1)
+                torch.squeeze(A @ torch.unsqueeze(X2, 2), 2)
+                - (1 - action_mask) * ops.HUGE_INT,
+                dim=-1,
+            )
             # action_dist = ops.weighted_softmax(torch.squeeze(A @ torch.unsqueeze(X2, 2), 2), action_mask)
             return action_dist, ops.entropy(action_dist)
 
@@ -131,21 +145,27 @@ class GraphSearchPolicy(nn.Module):
             db_outcomes = []
             entropy_list = []
             references = []
-            db_action_spaces, db_references = self.get_action_space_in_buckets(e, obs, kg)
+            db_action_spaces, db_references = self.get_action_space_in_buckets(
+                e, obs, kg
+            )
             for action_space_b, reference_b in zip(db_action_spaces, db_references):
                 X2_b = X2[reference_b, :]
                 action_dist_b, entropy_b = policy_nn_fun(X2_b, action_space_b)
                 references.extend(reference_b)
                 db_outcomes.append((action_space_b, action_dist_b))
                 entropy_list.append(entropy_b)
-            inv_offset = [i for i, _ in sorted(enumerate(references), key=lambda x: x[1])]
+            inv_offset = [
+                i for i, _ in sorted(enumerate(references), key=lambda x: x[1])
+            ]
             entropy = torch.cat(entropy_list, dim=0)[inv_offset]
             if merge_aspace_batching_outcome:
                 db_action_dist = []
                 for _, action_dist in db_outcomes:
                     db_action_dist.append(action_dist)
                 action_space = pad_and_cat_action_space(db_action_spaces, inv_offset)
-                action_dist = ops.pad_and_cat(db_action_dist, padding_value=0)[inv_offset]
+                action_dist = ops.pad_and_cat(db_action_dist, padding_value=0)[
+                    inv_offset
+                ]
                 db_outcomes = [(action_space, action_dist)]
                 inv_offset = None
         else:
@@ -164,8 +184,12 @@ class GraphSearchPolicy(nn.Module):
             init_action_embedding = self.get_action_embedding(init_action, kg)
         init_action_embedding.unsqueeze_(1)
         # [num_layers, batch_size, dim]
-        init_h = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
-        init_c = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
+        init_h = zeros_var_cuda(
+            [self.history_num_layers, len(init_action_embedding), self.history_dim]
+        )
+        init_c = zeros_var_cuda(
+            [self.history_num_layers, len(init_action_embedding), self.history_dim]
+        )
         self.path = [self.path_encoder(init_action_embedding, (init_h, init_c))[1]]
 
     def update_path(self, action, kg, offset=None):
@@ -177,6 +201,7 @@ class GraphSearchPolicy(nn.Module):
         :param offset: (Variable:batch) if None, adjust path history with the given offset, used for search
         :param KG: Knowledge graph environment.
         """
+
         def offset_path_history(p, offset):
             for i, x in enumerate(p):
                 if type(x) is tuple:
@@ -193,7 +218,9 @@ class GraphSearchPolicy(nn.Module):
         if offset is not None:
             offset_path_history(self.path, offset)
 
-        self.path.append(self.path_encoder(action_embedding.unsqueeze(1), self.path[-1])[1])
+        self.path.append(
+            self.path_encoder(action_embedding.unsqueeze(1), self.path[-1])[1]
+        )
 
     def get_action_space_in_buckets(self, e, obs, kg, collapse_entities=False):
         """
@@ -231,10 +258,10 @@ class GraphSearchPolicy(nn.Module):
             which is used later to restore the output results to the original order.
         """
         e_s, q, e_t, last_step, last_r, seen_nodes = obs
-        assert(len(e) == len(last_r))
-        assert(len(e) == len(e_s))
-        assert(len(e) == len(q))
-        assert(len(e) == len(e_t))
+        assert len(e) == len(last_r)
+        assert len(e) == len(e_s)
+        assert len(e) == len(q)
+        assert len(e) == len(e_t)
         db_action_spaces, db_references = [], []
 
         if collapse_entities:
@@ -283,14 +310,16 @@ class GraphSearchPolicy(nn.Module):
         e_s, q, e_t, last_step, last_r, seen_nodes = obs
 
         # Prevent the agent from selecting the ground truth edge
-        ground_truth_edge_mask = self.get_ground_truth_edge_mask(e, r_space, e_space, e_s, q, e_t, kg)
+        ground_truth_edge_mask = self.get_ground_truth_edge_mask(
+            e, r_space, e_space, e_s, q, e_t, kg
+        )
         action_mask -= ground_truth_edge_mask
         self.validate_action_mask(action_mask)
 
         # Mask out false negatives in the final step
         if last_step:
             false_negative_mask = self.get_false_negative_mask(e_space, e_s, q, e_t, kg)
-            action_mask *= (1 - false_negative_mask)
+            action_mask *= 1 - false_negative_mask
             self.validate_action_mask(action_mask)
 
         # Prevent the agent from stopping in the middle of a path
@@ -305,12 +334,21 @@ class GraphSearchPolicy(nn.Module):
         return (r_space, e_space), action_mask
 
     def get_ground_truth_edge_mask(self, e, r_space, e_space, e_s, q, e_t, kg):
-        ground_truth_edge_mask = \
-            ((e == e_s).unsqueeze(1) * (r_space == q.unsqueeze(1)) * (e_space == e_t.unsqueeze(1)))
+        ground_truth_edge_mask = (
+            (e == e_s).unsqueeze(1)
+            * (r_space == q.unsqueeze(1))
+            * (e_space == e_t.unsqueeze(1))
+        )
         inv_q = kg.get_inv_relation_id(q)
-        inv_ground_truth_edge_mask = \
-            ((e == e_t).unsqueeze(1) * (r_space == inv_q.unsqueeze(1)) * (e_space == e_s.unsqueeze(1)))
-        return ((ground_truth_edge_mask + inv_ground_truth_edge_mask) * (e_s.unsqueeze(1) != kg.dummy_e)).float()
+        inv_ground_truth_edge_mask = (
+            (e == e_t).unsqueeze(1)
+            * (r_space == inv_q.unsqueeze(1))
+            * (e_space == e_s.unsqueeze(1))
+        )
+        return (
+            (ground_truth_edge_mask + inv_ground_truth_edge_mask)
+            * (e_s.unsqueeze(1) != kg.dummy_e)
+        ).float()
 
     def get_answer_mask(self, e_space, e_s, q, kg):
         if kg.args.mask_test_false_negatives:
@@ -324,7 +362,9 @@ class GraphSearchPolicy(nn.Module):
                 answer_vector = var_cuda(torch.LongTensor([[kg.num_entities]]))
             else:
                 answer_vector = answer_vectors[_e_s][_q]
-            answer_mask = torch.sum(e_space[i].unsqueeze(0) == answer_vector, dim=0).long()
+            answer_mask = torch.sum(
+                e_space[i].unsqueeze(0) == answer_vector, dim=0
+            ).long()
             answer_masks.append(answer_mask)
         answer_mask = torch.cat(answer_masks).view(len(e_space), -1)
         return answer_mask
@@ -334,21 +374,23 @@ class GraphSearchPolicy(nn.Module):
         # This is a trick applied during training where we convert a multi-answer predction problem into several
         # single-answer prediction problems. By masking out the other answers in the training set, we are forcing
         # the agent to walk towards a particular answer.
-        # This trick does not affect inference on the test set: at inference time the ground truth answer will not 
-        # appear in the answer mask. This can be checked by uncommenting the following assertion statement. 
+        # This trick does not affect inference on the test set: at inference time the ground truth answer will not
+        # appear in the answer mask. This can be checked by uncommenting the following assertion statement.
         # Note that the assertion statement can trigger in the last batch if you're using a batch_size > 1 since
         # we append dummy examples to the last batch to make it the required batch size.
-        # The assertion statement will also trigger in the dev set inference of NELL-995 since we randomly 
+        # The assertion statement will also trigger in the dev set inference of NELL-995 since we randomly
         # sampled the dev set from the training data.
         # assert(float((answer_mask * (e_space == e_t.unsqueeze(1)).long()).sum()) == 0)
-        false_negative_mask = (answer_mask * (e_space != e_t.unsqueeze(1)).long()).float()
+        false_negative_mask = (
+            answer_mask * (e_space != e_t.unsqueeze(1)).long()
+        ).float()
         return false_negative_mask
 
     def validate_action_mask(self, action_mask):
         action_mask_min = action_mask.min()
         action_mask_max = action_mask.max()
-        assert (action_mask_min == 0 or action_mask_min == 1)
-        assert (action_mask_max == 0 or action_mask_max == 1)
+        assert action_mask_min == 0 or action_mask_min == 1
+        assert action_mask_max == 0 or action_mask_max == 1
 
     def get_action_embedding(self, action, kg):
         """
@@ -382,22 +424,26 @@ class GraphSearchPolicy(nn.Module):
         self.W1Dropout = nn.Dropout(p=self.ff_dropout_rate)
         self.W2Dropout = nn.Dropout(p=self.ff_dropout_rate)
         if self.relation_only_in_path:
-            self.path_encoder = nn.LSTM(input_size=self.relation_dim,
-                                        hidden_size=self.history_dim,
-                                        num_layers=self.history_num_layers,
-                                        batch_first=True)
+            self.path_encoder = nn.LSTM(
+                input_size=self.relation_dim,
+                hidden_size=self.history_dim,
+                num_layers=self.history_num_layers,
+                batch_first=True,
+            )
         else:
-            self.path_encoder = nn.LSTM(input_size=self.action_dim,
-                                        hidden_size=self.history_dim,
-                                        num_layers=self.history_num_layers,
-                                        batch_first=True)
+            self.path_encoder = nn.LSTM(
+                input_size=self.action_dim,
+                hidden_size=self.history_dim,
+                num_layers=self.history_num_layers,
+                batch_first=True,
+            )
 
     def initialize_modules(self):
         if self.xavier_initialization:
             nn.init.xavier_uniform_(self.W1.weight)
             nn.init.xavier_uniform_(self.W2.weight)
             for name, param in self.path_encoder.named_parameters():
-                if 'bias' in name:
+                if "bias" in name:
                     nn.init.constant_(param, 0.0)
-                elif 'weight' in name:
+                elif "weight" in name:
                     nn.init.xavier_normal_(param)

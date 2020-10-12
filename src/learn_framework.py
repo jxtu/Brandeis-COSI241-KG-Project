@@ -51,23 +51,34 @@ class LFramework(nn.Module):
 
         self.kg = kg
         self.mdl = mdl
-        print('{} module created'.format(self.model))
+        print("{} module created".format(self.model))
 
     def print_all_model_parameters(self):
-        print('\nModel Parameters')
-        print('--------------------------')
+        print("\nModel Parameters")
+        print("--------------------------")
         for name, param in self.named_parameters():
-            print(name, param.numel(), 'requires_grad={}'.format(param.requires_grad))
+            print(name, param.numel(), "requires_grad={}".format(param.requires_grad))
         param_sizes = [param.numel() for param in self.parameters()]
-        print('Total # parameters = {}'.format(sum(param_sizes)))
-        print('--------------------------')
+        print("Total # parameters = {}".format(sum(param_sizes)))
+        print("--------------------------")
         print()
 
-    def run_train(self, train_data, dev_data, few_shot=False, adaptation=False, adaptation_relation=None, emb=False):
+    def run_train(
+        self,
+        train_data,
+        dev_data,
+        few_shot=False,
+        adaptation=False,
+        adaptation_relation=None,
+        emb=False,
+    ):
         self.print_all_model_parameters()
 
         if self.optim is None:
-            self.optim = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=self.learning_rate)
+            self.optim = optim.Adam(
+                filter(lambda p: p.requires_grad, self.parameters()),
+                lr=self.learning_rate,
+            )
 
         # Track dev metrics changes
         best_dev_metrics = 0
@@ -75,12 +86,12 @@ class LFramework(nn.Module):
         print(self.start_epoch)
 
         for epoch_id in range(self.start_epoch, self.num_epochs):
-            print('Epoch {}'.format(epoch_id))
+            print("Epoch {}".format(epoch_id))
             self.train()
-            if self.rl_variation_tag.startswith('rs'):
+            if self.rl_variation_tag.startswith("rs"):
                 self.fn.eval()
                 self.fn_kg.eval()
-                if self.model.endswith('hypere'):
+                if self.model.endswith("hypere"):
                     self.fn_secondary_kg.eval()
             self.batch_size = self.train_batch_size
             if few_shot and not emb:
@@ -97,12 +108,23 @@ class LFramework(nn.Module):
                 for x in train_data:
                     index_list[x] = 0
                 for x in shuffle_list:
-                    if index_list[x] * self.batch_size + self.batch_size <= len(train_data[x]):
-                        new_train_data += train_data[x][index_list[x] * self.batch_size: index_list[x] * self.batch_size + self.batch_size]
+                    if index_list[x] * self.batch_size + self.batch_size <= len(
+                        train_data[x]
+                    ):
+                        new_train_data += train_data[x][
+                            index_list[x]
+                            * self.batch_size : index_list[x]
+                            * self.batch_size
+                            + self.batch_size
+                        ]
                         index_list[x] += 1
                     else:
-                        new_train_data += train_data[x][index_list[x] * self.batch_size: len(train_data[x])]
-                        others = self.batch_size - (len(train_data[x]) - index_list[x] * self.batch_size)
+                        new_train_data += train_data[x][
+                            index_list[x] * self.batch_size : len(train_data[x])
+                        ]
+                        others = self.batch_size - (
+                            len(train_data[x]) - index_list[x] * self.batch_size
+                        )
                         new_train_data += train_data[x][:others]
                 self.batch_size = int(self.batch_size / 2)
             else:
@@ -116,67 +138,77 @@ class LFramework(nn.Module):
             if few_shot and not emb:
                 for example_id in range(0, len(new_train_data), 2 * self.batch_size):
                     self.optim.zero_grad()
-                    mini_batch = new_train_data[example_id:example_id + self.batch_size]
-                    mini_batch_valid = new_train_data[example_id + self.batch_size:example_id + 2 * self.batch_size]
+                    mini_batch = new_train_data[
+                        example_id : example_id + self.batch_size
+                    ]
+                    mini_batch_valid = new_train_data[
+                        example_id + self.batch_size : example_id + 2 * self.batch_size
+                    ]
                     loss = self.meta_loss(mini_batch, mini_batch_valid)
-                    loss['model_loss'].backward()
+                    loss["model_loss"].backward()
                     if self.grad_norm > 0:
                         clip_grad_norm_(self.parameters(), self.grad_norm)
                     self.optim.step()
-                    batch_losses.append(loss['print_loss'])
-                    if 'entropy' in loss:
-                        entropies.append(loss['entropy'])
+                    batch_losses.append(loss["print_loss"])
+                    if "entropy" in loss:
+                        entropies.append(loss["entropy"])
                     if self.run_analysis:
                         if rewards is None:
-                            rewards = loss['reward']
+                            rewards = loss["reward"]
                         else:
-                            rewards = torch.cat([rewards, loss['reward']])
+                            rewards = torch.cat([rewards, loss["reward"]])
                         if fns is None:
-                            fns = loss['fn']
+                            fns = loss["fn"]
                         else:
-                            fns = torch.cat([fns, loss['fn']])
+                            fns = torch.cat([fns, loss["fn"]])
             else:
-                print('length of train_data', len(train_data))
+                print("length of train_data", len(train_data))
                 for example_id in range(0, len(train_data), self.batch_size):
                     self.optim.zero_grad()
-                    mini_batch = train_data[example_id:example_id + self.batch_size]
+                    mini_batch = train_data[example_id : example_id + self.batch_size]
                     if len(mini_batch) < self.batch_size:
                         continue
                     loss = self.loss(mini_batch)
-                    loss['model_loss'].backward()
+                    loss["model_loss"].backward()
                     if self.grad_norm > 0:
                         clip_grad_norm_(self.parameters(), self.grad_norm)
                     self.optim.step()
-                    batch_losses.append(loss['print_loss'])
-                    if 'entropy' in loss:
-                        entropies.append(loss['entropy'])
+                    batch_losses.append(loss["print_loss"])
+                    if "entropy" in loss:
+                        entropies.append(loss["entropy"])
                     if self.run_analysis:
                         if rewards is None:
-                            rewards = loss['reward']
+                            rewards = loss["reward"]
                         else:
-                            rewards = torch.cat([rewards, loss['reward']])
+                            rewards = torch.cat([rewards, loss["reward"]])
                         if fns is None:
-                            fns = loss['fn']
+                            fns = loss["fn"]
                         else:
-                            fns = torch.cat([fns, loss['fn']])
+                            fns = torch.cat([fns, loss["fn"]])
             # Check training statistics
-            stdout_msg = 'Epoch {}: average training loss = {}'.format(epoch_id, np.mean(batch_losses))
+            stdout_msg = "Epoch {}: average training loss = {}".format(
+                epoch_id, np.mean(batch_losses)
+            )
             if entropies:
-                stdout_msg += 'entropy = {}'.format(np.mean(entropies))
+                stdout_msg += "entropy = {}".format(np.mean(entropies))
             print(stdout_msg)
             if epoch_id % self.num_wait_epochs == 0 or epoch_id == self.num_epochs - 1:
                 if not adaptation:
                     self.save_checkpoint(checkpoint_id=epoch_id, epoch_id=epoch_id)
                 else:
-                    self.save_checkpoint(checkpoint_id=epoch_id, epoch_id=epoch_id, relation=adaptation_relation)
+                    self.save_checkpoint(
+                        checkpoint_id=epoch_id,
+                        epoch_id=epoch_id,
+                        relation=adaptation_relation,
+                    )
             if self.run_analysis:
-                print('* Analysis: # path types seen = {}'.format(self.num_path_types))
+                print("* Analysis: # path types seen = {}".format(self.num_path_types))
                 num_hits = float(rewards.sum())
                 hit_ratio = num_hits / len(rewards)
-                print('* Analysis: # hits = {} ({})'.format(num_hits, hit_ratio))
+                print("* Analysis: # hits = {} ({})".format(num_hits, hit_ratio))
                 num_fns = float(fns.sum())
                 fn_ratio = num_fns / len(fns)
-                print('* Analysis: false negative ratio = {}'.format(fn_ratio))
+                print("* Analysis: false negative ratio = {}".format(fn_ratio))
 
             # Check dev set performance
             # if (self.run_analysis or (epoch_id > 0 and epoch_id % self.num_wait_epochs == 0)) and self.model != '!TransE' and self.model != 'PTransE':
@@ -193,7 +225,7 @@ class LFramework(nn.Module):
             #         eta = self.action_dropout_anneal_interval
             #         if len(dev_metrics_history) > eta and metrics < min(dev_metrics_history[-eta:]):
             #             old_action_dropout_rate = self.action_dropout_rate
-            #             self.action_dropout_rate *= self.action_dropout_anneal_factor 
+            #             self.action_dropout_rate *= self.action_dropout_anneal_factor
             #             print('Decreasing action dropout rate: {} -> {}'.format(
             #                 old_action_dropout_rate, self.action_dropout_rate))
             #     # Save checkpoint
@@ -235,7 +267,7 @@ class LFramework(nn.Module):
     def forward(self, examples, verbose=False):
         pred_scores = []
         for example_id in range(0, len(examples), self.batch_size):
-            mini_batch = examples[example_id:example_id + self.batch_size]
+            mini_batch = examples[example_id : example_id + self.batch_size]
             mini_batch_size = len(mini_batch)
             if len(mini_batch) < self.batch_size:
                 self.make_full_batch(mini_batch, self.batch_size)
@@ -248,6 +280,7 @@ class LFramework(nn.Module):
         """
         Convert batched tuples to the tensors accepted by the NN.
         """
+
         def convert_to_binary_multi_subject(e1):
             e1_label = zeros_var_cuda([len(e1), num_labels])
             for i in range(len(e1)):
@@ -291,7 +324,9 @@ class LFramework(nn.Module):
         for _ in range(batch_size - len(mini_batch)):
             mini_batch.append(dummy_example)
 
-    def save_checkpoint(self, checkpoint_id, epoch_id=None, is_best=False, relation=False):
+    def save_checkpoint(
+        self, checkpoint_id, epoch_id=None, is_best=False, relation=False
+    ):
         """
         Save model checkpoint.
         :param checkpoint_id: Model checkpoint index assigned by training loop.
@@ -299,20 +334,24 @@ class LFramework(nn.Module):
         :param is_best: if set, the model being saved is the best model on dev set.
         """
         checkpoint_dict = dict()
-        checkpoint_dict['state_dict'] = self.state_dict()
-        checkpoint_dict['epoch_id'] = epoch_id
+        checkpoint_dict["state_dict"] = self.state_dict()
+        checkpoint_dict["epoch_id"] = epoch_id
 
         if not relation:
-            out_tar = os.path.join(self.model_dir, 'checkpoint-{}.tar'.format(checkpoint_id))
+            out_tar = os.path.join(
+                self.model_dir, "checkpoint-{}.tar".format(checkpoint_id)
+            )
         else:
-            out_tar = os.path.join(self.model_dir, 'checkpoint-{}-{}.tar'.format(checkpoint_id, relation))
+            out_tar = os.path.join(
+                self.model_dir, "checkpoint-{}-{}.tar".format(checkpoint_id, relation)
+            )
         if is_best:
-            best_path = os.path.join(self.model_dir, 'model_best.tar')
+            best_path = os.path.join(self.model_dir, "model_best.tar")
             shutil.copyfile(out_tar, best_path)
-            print('=> best model updated \'{}\''.format(best_path))
+            print("=> best model updated '{}'".format(best_path))
         else:
             torch.save(checkpoint_dict, out_tar)
-            print('=> saving checkpoint to \'{}\''.format(out_tar))
+            print("=> saving checkpoint to '{}'".format(out_tar))
 
     def load_checkpoint(self, input_file, adaptation=False, emb_few=False):
         """
@@ -322,43 +361,45 @@ class LFramework(nn.Module):
         :param input_file: Checkpoint file path.
         """
         if os.path.isfile(input_file):
-            print('=> loading checkpoint \'{}\''.format(input_file))
-            checkpoint = torch.load(input_file, map_location=('cuda:' + str(self.gpu_id)))
-            self.load_state_dict(checkpoint['state_dict'])
+            print("=> loading checkpoint '{}'".format(input_file))
+            checkpoint = torch.load(
+                input_file, map_location=("cuda:" + str(self.gpu_id))
+            )
+            self.load_state_dict(checkpoint["state_dict"])
             if not self.inference and not adaptation and not emb_few:
-                self.start_epoch = checkpoint['epoch_id'] + 1
-                assert (self.start_epoch <= self.num_epochs)
+                self.start_epoch = checkpoint["epoch_id"] + 1
+                assert self.start_epoch <= self.num_epochs
         else:
-            print('=> no checkpoint found at \'{}\''.format(input_file))
+            print("=> no checkpoint found at '{}'".format(input_file))
 
     def export_to_embedding_projector(self):
         """
         Export knowledge base embeddings into .tsv files accepted by the Tensorflow Embedding Projector.
         """
-        vector_path = os.path.join(self.model_dir, 'vector.tsv')
-        meta_data_path = os.path.join(self.model_dir, 'metadata.tsv')
-        v_o_f = open(vector_path, 'w')
-        m_o_f = open(meta_data_path, 'w')
+        vector_path = os.path.join(self.model_dir, "vector.tsv")
+        meta_data_path = os.path.join(self.model_dir, "metadata.tsv")
+        v_o_f = open(vector_path, "w")
+        m_o_f = open(meta_data_path, "w")
         for r in self.kg.relation2id:
-            if r.endswith('_inv'):
+            if r.endswith("_inv"):
                 continue
             r_id = self.kg.relation2id[r]
             R = self.kg.relation_embeddings.weight[r_id]
-            r_print = ''
+            r_print = ""
             for i in range(len(R)):
-                r_print += '{}\t'.format(float(R[i]))
-            v_o_f.write('{}\n'.format(r_print.strip()))
-            m_o_f.write('{}\n'.format(r))
-            print(r, '{}'.format(float(R.norm())))
+                r_print += "{}\t".format(float(R[i]))
+            v_o_f.write("{}\n".format(r_print.strip()))
+            m_o_f.write("{}\n".format(r))
+            print(r, "{}".format(float(R.norm())))
         v_o_f.close()
         m_o_f.close()
-        print('KG embeddings exported to {}'.format(vector_path))
-        print('KG meta data exported to {}'.format(meta_data_path))
+        print("KG embeddings exported to {}".format(vector_path))
+        print("KG meta data exported to {}".format(meta_data_path))
 
     @property
     def rl_variation_tag(self):
-        parts = self.model.split('.')
+        parts = self.model.split(".")
         if len(parts) > 1:
             return parts[1]
         else:
-            return ''
+            return ""
