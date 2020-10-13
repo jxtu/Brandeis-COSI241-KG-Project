@@ -59,7 +59,7 @@ def process_data():
 
 def initialize_model_directory(args, random_seed=None):
     # add model parameter info to model directory
-    model_root_dir = args.model_root_dir
+    model_root_dir = args.model_root_dir  # NOTE: "model/"
     dataset = os.path.basename(os.path.normpath(args.data_dir))
 
     reverse_edge_tag = "-RV" if args.add_reversed_training_edges else ""
@@ -128,6 +128,7 @@ def initialize_model_directory(args, random_seed=None):
             hyperparam_sig += "-{}".format(args.reward_shaping_threshold)
     elif args.model == "distmult" or args.model == "TransE":
         hyperparam_sig = "{}-{}-{}-{}-{}".format(
+            # NOTE: e.g. "200-200-0.003-0.3-0.1"
             args.entity_dim,
             args.relation_dim,
             args.learning_rate,
@@ -158,6 +159,7 @@ def initialize_model_directory(args, random_seed=None):
         raise NotImplementedError
 
     model_sub_dir = "{}-{}{}{}{}-{}".format(
+        # NOTE: e.g. "NE-distmult-xavier-200-200-0.003-0.3-0.1" (no reverse_edge_tag and entire_graph_tag)
         dataset,
         args.model,
         reverse_edge_tag,
@@ -196,7 +198,7 @@ def construct_model(args):
     """
     Construct NN graph.
     """
-    kg = KnowledgeGraph(args)
+    kg = KnowledgeGraph(args)  # NOTE: initialize a KG instance
     if args.model.endswith(".gc"):
         kg.load_fuzzy_facts()
 
@@ -822,7 +824,6 @@ def pre_handle_args(args):
 
 
 def run_experiment(args):
-
     if args.test:
         if "NELL" in args.data_dir:
             dataset = os.path.basename(args.data_dir)
@@ -844,7 +845,7 @@ def run_experiment(args):
         process_data()
     else:
         with torch.set_grad_enabled(
-            args.train or args.search_random_seed or args.grid_search
+                args.train or args.search_random_seed or args.grid_search
         ):
             if args.search_random_seed:
 
@@ -1072,7 +1073,7 @@ def run_experiment(args):
                 if args.train and args.adaptation:
                     pre_handle_args(args)
                 initialize_model_directory(args)
-                lf = construct_model(args)
+                lf = construct_model(args)  # NOTE: executed before any experiments
                 lf.cuda()
 
                 if args.train:
