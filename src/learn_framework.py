@@ -87,7 +87,7 @@ class LFramework(nn.Module):
 
         for epoch_id in range(self.start_epoch, self.num_epochs):
             print("Epoch {}".format(epoch_id))
-            self.train()
+            self.train()  # NOTE: train mode in pytorch
             if self.rl_variation_tag.startswith("rs"):
                 self.fn.eval()
                 self.fn_kg.eval()
@@ -98,6 +98,7 @@ class LFramework(nn.Module):
                 self.batch_size *= 2
                 shuffle_list = []
                 for x in train_data:
+                    # NOTE: x is a relation id, its corresponding value is a list of triples
                     random.shuffle(train_data[x])
                     num = int((len(train_data[x]) - 1) / self.batch_size) + 1
                     for i in range(num):
@@ -162,13 +163,14 @@ class LFramework(nn.Module):
                         else:
                             fns = torch.cat([fns, loss["fn"]])
             else:
+                # NOTE: embedding training process
                 print("length of train_data", len(train_data))
                 for example_id in range(0, len(train_data), self.batch_size):
                     self.optim.zero_grad()
                     mini_batch = train_data[example_id : example_id + self.batch_size]
                     if len(mini_batch) < self.batch_size:
                         continue
-                    loss = self.loss(mini_batch)
+                    loss = self.loss(mini_batch)  # NOTE: defined in EmbeddingBasedMethod
                     loss["model_loss"].backward()
                     if self.grad_norm > 0:
                         clip_grad_norm_(self.parameters(), self.grad_norm)
@@ -271,7 +273,7 @@ class LFramework(nn.Module):
             mini_batch_size = len(mini_batch)
             if len(mini_batch) < self.batch_size:
                 self.make_full_batch(mini_batch, self.batch_size)
-            pred_score = self.predict(mini_batch, verbose=verbose)
+            pred_score = self.predict(mini_batch, verbose=verbose)  # NOTE: defined in EmbeddingBasedMethod
             pred_scores.append(pred_score[:mini_batch_size])
         scores = torch.cat(pred_scores)
         return scores

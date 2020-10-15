@@ -215,10 +215,11 @@ class DistMult(nn.Module):
         R = kg.get_relation_embeddings(r)
         E2 = kg.get_all_entity_embeddings()
         S = torch.mm(E1 * R, E2.transpose(1, 0))
-        S = F.sigmoid(S)
+        S = F.sigmoid(S)  # NOTE: distribution on all entities
         return S
 
     def forward_fact(self, e1, r, e2, kg):
+        # TODO: is it the score function?
         E1 = kg.get_entity_embeddings(e1)
         R = kg.get_relation_embeddings(r)
         E2 = kg.get_entity_embeddings(e2)
