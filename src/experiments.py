@@ -59,7 +59,7 @@ def process_data():
 
 def initialize_model_directory(args, random_seed=None):
     # add model parameter info to model directory
-    model_root_dir = args.model_root_dir
+    model_root_dir = args.model_root_dir  # NOTE: "model/"
     dataset = os.path.basename(os.path.normpath(args.data_dir))
 
     reverse_edge_tag = "-RV" if args.add_reversed_training_edges else ""
@@ -128,6 +128,7 @@ def initialize_model_directory(args, random_seed=None):
             hyperparam_sig += "-{}".format(args.reward_shaping_threshold)
     elif args.model == "distmult" or args.model == "TransE":
         hyperparam_sig = "{}-{}-{}-{}-{}".format(
+            # NOTE: e.g. "200-200-0.003-0.3-0.1"
             args.entity_dim,
             args.relation_dim,
             args.learning_rate,
@@ -158,6 +159,7 @@ def initialize_model_directory(args, random_seed=None):
         raise NotImplementedError
 
     model_sub_dir = "{}-{}{}{}{}-{}".format(
+        # NOTE: e.g. "NE-distmult-xavier-200-200-0.003-0.3-0.1" (no reverse_edge_tag and entire_graph_tag)
         dataset,
         args.model,
         reverse_edge_tag,
@@ -188,7 +190,7 @@ def initialize_model_directory(args, random_seed=None):
         print("Model directory created: {}".format(model_dir))
     else:
         print("Model directory exists: {}".format(model_dir))
-
+    #  NOTE: rewrite model_dir
     args.model_dir = model_dir
 
 
@@ -196,8 +198,8 @@ def construct_model(args):
     """
     Construct NN graph.
     """
-    kg = KnowledgeGraph(args)
-    if args.model.endswith(".gc"):
+    kg = KnowledgeGraph(args)  # NOTE: initialize a KG instance
+    if args.model.endswith(".gc"):  # CAVEAT: not sure what model needs fuzzy facts
         kg.load_fuzzy_facts()
 
     if args.model in ["point", "point.gc"]:
@@ -223,8 +225,9 @@ def construct_model(args):
         fn = ComplEx(args)
         lf = EmbeddingBasedMethod(args, kg, fn)
     elif args.model == "distmult":
+        print("jxtu: embedding model: distmult")
         fn = DistMult(args)
-        lf = EmbeddingBasedMethod(args, kg, fn)
+        lf = EmbeddingBasedMethod(args, kg, fn)  # NOTE: embedding-based learning framework
     elif args.model == "conve":
         fn = ConvE(args, kg.num_entities)
         lf = EmbeddingBasedMethod(args, kg, fn)
@@ -242,21 +245,25 @@ def train(lf):
     entity_index_path = os.path.join(args.data_dir, "entity2id.txt")
     relation_index_path = os.path.join(args.data_dir, "relation2id.txt")
     if args.few_shot or args.adaptation:
+        # NOTE: train_data: {"11": [(362, 11, 57), (246, 11, 42), ...], ...}
         normal_train_data, few_train_data = data_utils.load_triples(
             train_path,
             entity_index_path,
             relation_index_path,
-            group_examples_by_query=args.group_examples_by_query,
+            group_examples_by_query=args.group_examples_by_query,  # NOTE: False in meta-learning
             add_reverse_relations=args.add_reversed_training_edges,
             few_shot=True,
             lf=lf,
         )
     else:
+        # NOTE: train_data: [(36221, [11], 57), (4203, [7, 8, 13, 15, 48], 3), ...]
+        print("jxtu: load all train data...")
+
         train_data = data_utils.load_triples(
             train_path,
             entity_index_path,
             relation_index_path,
-            group_examples_by_query=args.group_examples_by_query,
+            group_examples_by_query=args.group_examples_by_query,  # NOTE: True in embedding training
             add_reverse_relations=args.add_reversed_training_edges,
         )
     if "NELL" in args.data_dir:
@@ -822,7 +829,6 @@ def pre_handle_args(args):
 
 
 def run_experiment(args):
-
     if args.test:
         if "NELL" in args.data_dir:
             dataset = os.path.basename(args.data_dir)
@@ -840,11 +846,12 @@ def run_experiment(args):
     if args.process_data:
 
         # Process knowledge graph data
-
+        # NOTE: this has been done already to generate entity id file and etc.
         process_data()
+        print("jxtu: process data executed...")
     else:
         with torch.set_grad_enabled(
-            args.train or args.search_random_seed or args.grid_search
+                args.train or args.search_random_seed or args.grid_search
         ):
             if args.search_random_seed:
 
@@ -962,6 +969,7 @@ def run_experiment(args):
                         )
                     )
                     o_f.close()
+                print("jxtu: search random seeds executed...")
 
             elif args.grid_search:
 
@@ -1065,17 +1073,20 @@ def run_experiment(args):
                     )
 
                     o_f.close()
+                print("jxtu: grid search executed...")
 
             elif args.run_ablation_studies:
                 run_ablation_studies(args)
+                print("jxtu: ablation study executed...")
             else:
                 if args.train and args.adaptation:
                     pre_handle_args(args)
                 initialize_model_directory(args)
-                lf = construct_model(args)
+                lf = construct_model(args)  # NOTE: executed before any experiments
                 lf.cuda()
 
                 if args.train:
+                    print("jxtu: train experiment executed...")
                     train(lf)
                 elif args.inference:
                     inference(lf)

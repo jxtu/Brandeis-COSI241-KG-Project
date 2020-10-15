@@ -9,6 +9,7 @@ This is the repository for COSI-241 final project.
 2. Related Material
     - Multi-hop KG baseline: [Multi-Hop Knowledge Graph Reasoning with Reward Shaping](https://arxiv.org/pdf/1808.10568.pdf)
     - Survey on KG: [A Survey on Knowledge Graphs: Representation, Acquisition and Applications](https://arxiv.org/pdf/2002.00388.pdf)
+    - One-shot relation learning: [One-Shot Relational Learning for Knowledge Graphs](https://arxiv.org/pdf/1808.09040.pdf)
 3. Knowledge Graph Datasets
     - NELL-995: [Original paper](https://arxiv.org/pdf/1707.06690v3.pdf)
     - FB15k-237: [Original paper](https://www.aclweb.org/anthology/W15-4007.pdf)

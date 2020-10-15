@@ -59,6 +59,7 @@ class KnowledgeGraph(nn.Module):
         self.all_object_vectors = None
 
         print("** Create {} knowledge graph **".format(args.model))
+        # NOTE: load all related data into graph
         if args.few_shot or args.adaptation:
             self.load_few_shot(args.data_dir)
         self.load_graph_data(args.data_dir)
@@ -91,13 +92,13 @@ class KnowledgeGraph(nn.Module):
         )
 
     def load_few_shot(self, data_dir):
-        self.few_shot_relation = set()
+        self.few_shot_relation = set()  # NOTE: a set of relations
         lines = open(os.path.join(data_dir, "few_shot.txt")).readlines()
         for line in lines:
             self.few_shot_relation.add(line.strip())
 
     def load_graph_data(self, data_dir):
-        # Load indices
+        # Load indices {"concept_book_new": "1", "concept_lake_new": "1", ...}
         self.entity2id, self.id2entity = load_index(
             os.path.join(data_dir, "entity2id.txt")
         )
@@ -111,7 +112,7 @@ class KnowledgeGraph(nn.Module):
         )
         print("Sanity check: {} relations loaded".format(len(self.relation2id)))
 
-        # Load graph structures
+        # Load graph structures (not used for training embeddings)
         if self.args.model.startswith("point"):
             # Base graph structure used for training and test
             adj_list_path = os.path.join(data_dir, "adj_list.pkl")
@@ -167,6 +168,7 @@ class KnowledgeGraph(nn.Module):
             return action_space
 
         def get_unique_r_space(e1):
+            # NOTE: return a list of relations associated with e1
             if e1 in self.adj_list:
                 return list(self.adj_list[e1].keys())
             else:
@@ -307,10 +309,13 @@ class KnowledgeGraph(nn.Module):
                     if add_reversed_edges:
                         add_subject(e2, e1, self.get_inv_relation_id(r), all_subjects)
                         add_object(e2, e1, self.get_inv_relation_id(r), all_objects)
+        # NOTE: train_subjects/objects contains only train.triples and raw.kb
         self.train_subjects = train_subjects
         self.train_objects = train_objects
+        # NOTE: dev_subjects/objects contains train.triples, dev.triples and raw.kb
         self.dev_subjects = dev_subjects
         self.dev_objects = dev_objects
+        # NOTE: dev_subjects/objects contains train.triples, dev.triples, test,triples and raw.kb
         self.all_subjects = all_subjects
         self.all_objects = all_objects
 
@@ -402,7 +407,7 @@ class KnowledgeGraph(nn.Module):
         ).long() * e_space.view(batch_size, -1)
         e_set_out = []
         for i in range(len(e_space)):
-            e_set_out_b = var_cuda(unique(e_space[i].data))
+            e_set_out_b = var_cuda(torch.unique(e_space[i].data))
             e_set_out.append(e_set_out_b.unsqueeze(0))
         e_set_out = ops.pad_and_cat(e_set_out, padding_value=self.dummy_e)
         return e_set_out
@@ -422,7 +427,7 @@ class KnowledgeGraph(nn.Module):
                 self.entity_img_embeddings = nn.Embedding(
                     self.num_entities, self.entity_dim
                 )
-            self.EDropout = nn.Dropout(self.emb_dropout_rate)
+            self.EDropout = nn.Dropout(self.emb_dropout_rate)  # CAVEAT: what is this embeddings dropout for?
         self.relation_embeddings = nn.Embedding(self.num_relations, self.relation_dim)
         if self.args.model == "complex":
             self.relation_img_embeddings = nn.Embedding(
