@@ -53,17 +53,17 @@ class GraphSearchPolicy(nn.Module):
             loss, self.parameters(), create_graph=not first_order
         )
         return (
-            parameters_to_vector(self.parameters())
-            - parameters_to_vector(grads) * step_size
+                parameters_to_vector(self.parameters())
+                - parameters_to_vector(grads) * step_size
         )
 
     def transit(
-        self,
-        e,
-        obs,
-        kg,
-        use_action_space_bucketing=True,
-        merge_aspace_batching_outcome=False,
+            self,
+            e,
+            obs,
+            kg,
+            use_action_space_bucketing=True,
+            merge_aspace_batching_outcome=False,
     ):
         """
         Compute the next action distribution based on
@@ -78,7 +78,7 @@ class GraphSearchPolicy(nn.Module):
             last_r: label of edge traversed in the previous step
             seen_nodes: notes seen on the paths
         :param kg: Knowledge graph environment.
-        :param use_action_space_bucketing: If set, group the action space of different nodes 
+        :param use_action_space_bucketing: If set, group the action space of different nodes
             into buckets by their sizes.
         :param merge_aspace_batch_outcome: If set, merge the transition probability distribution
             generated of different action space bucket into a single batch.
@@ -117,7 +117,10 @@ class GraphSearchPolicy(nn.Module):
 
         def policy_nn_fun(X2, action_space):
             (r_space, e_space), action_mask = action_space
-            A = self.get_action_embedding((r_space, e_space), kg)
+            # ================= newly added ===================
+            # A = self.get_action_embedding((r_space, e_space), kg)
+            A = self.get_agg_action_embedding((r_space, e_space), kg)
+            # ================= newly added ===================
             action_dist = F.softmax(
                 torch.squeeze(A @ torch.unsqueeze(X2, 2), 2)
                 - (1 - action_mask) * ops.HUGE_INT,
@@ -181,7 +184,10 @@ class GraphSearchPolicy(nn.Module):
         if self.relation_only_in_path:
             init_action_embedding = kg.get_relation_embeddings(init_action[0])
         else:
-            init_action_embedding = self.get_action_embedding(init_action, kg)
+            # ================= newly added ===================
+            # init_action_embedding = self.get_action_embedding(init_action, kg)
+            init_action_embedding = self.get_agg_action_embedding(init_action, kg)
+            # ================= newly added ===================
         init_action_embedding.unsqueeze_(1)
         # [num_layers, batch_size, dim]
         init_h = zeros_var_cuda(
@@ -214,7 +220,10 @@ class GraphSearchPolicy(nn.Module):
         if self.relation_only_in_path:
             action_embedding = kg.get_relation_embeddings(action[0])
         else:
-            action_embedding = self.get_action_embedding(action, kg)
+            # ================= newly added ===================
+            # action_embedding = self.get_action_embedding(action, kg)
+            action_embedding = self.get_agg_action_embedding(action, kg)
+            # ================= newly added ===================
         if offset is not None:
             offset_path_history(self.path, offset)
 
@@ -335,19 +344,19 @@ class GraphSearchPolicy(nn.Module):
 
     def get_ground_truth_edge_mask(self, e, r_space, e_space, e_s, q, e_t, kg):
         ground_truth_edge_mask = (
-            (e == e_s).unsqueeze(1)
-            * (r_space == q.unsqueeze(1))
-            * (e_space == e_t.unsqueeze(1))
+                (e == e_s).unsqueeze(1)
+                * (r_space == q.unsqueeze(1))
+                * (e_space == e_t.unsqueeze(1))
         )
         inv_q = kg.get_inv_relation_id(q)
         inv_ground_truth_edge_mask = (
-            (e == e_t).unsqueeze(1)
-            * (r_space == inv_q.unsqueeze(1))
-            * (e_space == e_s.unsqueeze(1))
+                (e == e_t).unsqueeze(1)
+                * (r_space == inv_q.unsqueeze(1))
+                * (e_space == e_s.unsqueeze(1))
         )
         return (
-            (ground_truth_edge_mask + inv_ground_truth_edge_mask)
-            * (e_s.unsqueeze(1) != kg.dummy_e)
+                (ground_truth_edge_mask + inv_ground_truth_edge_mask)
+                * (e_s.unsqueeze(1) != kg.dummy_e)
         ).float()
 
     def get_answer_mask(self, e_space, e_s, q, kg):
@@ -382,7 +391,7 @@ class GraphSearchPolicy(nn.Module):
         # sampled the dev set from the training data.
         # assert(float((answer_mask * (e_space == e_t.unsqueeze(1)).long()).sum()) == 0)
         false_negative_mask = (
-            answer_mask * (e_space != e_t.unsqueeze(1)).long()
+                answer_mask * (e_space != e_t.unsqueeze(1)).long()
         ).float()
         return false_negative_mask
 
@@ -411,6 +420,18 @@ class GraphSearchPolicy(nn.Module):
             entity_embedding = kg.get_entity_embeddings(e)
             action_embedding = torch.cat([relation_embedding, entity_embedding], dim=-1)
         return action_embedding
+
+    # ================= newly added ===================
+    def get_agg_action_embedding(self, action, kg):
+        r, e = action
+        relation_embedding = kg.get_relation_embeddings(r)
+        if self.relation_only:
+            action_embedding = relation_embedding
+        else:
+            all_agg_embeds = kg.get_agg_entity_embeddings(e)
+            action_embedding = torch.cat([relation_embedding, all_agg_embeds], dim=-1)
+        return action_embedding
+    # ================= newly added ===================
 
     def define_modules(self):
         if self.relation_only:

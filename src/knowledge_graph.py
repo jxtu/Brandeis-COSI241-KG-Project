@@ -378,6 +378,27 @@ class KnowledgeGraph(nn.Module):
     def get_entity_embeddings(self, e):
         return self.EDropout(self.entity_embeddings(e))
 
+# ================= newly added ===================
+    def get_agg_entity_embeddings(self, e):
+        def get_neighbor_embeddings(e1):
+            bucketids = self.entity2bucketid[e1].numpy()
+            e2s = self.action_space_buckets[bucketids[0]][0][1][bucketids[1]]
+            r2s = self.action_space_buckets[bucketids[0]][0][0][bucketids[1]]
+            rel_embeds = self.get_relation_embeddings(r2s)
+            ent_embeds = self.get_entity_embeddings(e2s)
+            cat_embeds = torch.cat([ent_embeds, rel_embeds], dim=1)
+            cat_embeds = torch.mean(cat_embeds, dim=0, keepdim=True)
+            return cat_embeds
+
+        all_agg_embeds = []
+        e_shape = e.shape
+        for e1 in e.view(-1):
+            cat_embeds = get_neighbor_embeddings(e1)
+            all_agg_embeds.append(cat_embeds)
+        all_agg_embeds = torch.matmul(torch.cat(all_agg_embeds, dim=0).view(*e_shape, -1), self.AGG_W)
+        return all_agg_embeds
+# ================= newly added ===================
+
     def get_all_relation_embeddings(self):
         return self.RDropout(self.relation_embeddings.weight)
 
@@ -423,6 +444,9 @@ class KnowledgeGraph(nn.Module):
     def define_modules(self):
         if not self.args.relation_only:
             self.entity_embeddings = nn.Embedding(self.num_entities, self.entity_dim)
+            # ================= newly added ===================
+            self.AGG_W = nn.Parameter(torch.zeros(self.entity_dim + self.relation_dim, self.entity_dim))
+            # ================= newly added ===================
             if self.args.model == "complex":
                 self.entity_img_embeddings = nn.Embedding(
                     self.num_entities, self.entity_dim
@@ -438,6 +462,9 @@ class KnowledgeGraph(nn.Module):
     def initialize_modules(self):
         if not self.args.relation_only:
             nn.init.xavier_normal_(self.entity_embeddings.weight)
+            # ================= newly added ===================
+            nn.init.xavier_uniform_(self.AGG_W)
+            # ================= newly added ===================
         nn.init.xavier_normal_(self.relation_embeddings.weight)
 
     @property
