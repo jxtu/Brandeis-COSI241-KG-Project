@@ -313,7 +313,9 @@ def get_complex_kg_state_dict(state_dict):
 
 def get_distmult_kg_state_dict(state_dict):
     kg_state_dict = dict()
-    for param_name in ["kg.entity_embeddings.weight", "kg.relation_embeddings.weight"]:
+    # ================= newly added ===================
+    for param_name in ['kg.entity_embeddings.weight', 'kg.relation_embeddings.weight', 'kg.AGG_W', 'kg.entity_type_embeddings.weight']:
+    # ================= newly added ===================
         kg_state_dict[param_name.split(".", 1)[1]] = state_dict["state_dict"][
             param_name
         ]

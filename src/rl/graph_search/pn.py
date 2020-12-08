@@ -30,7 +30,9 @@ class GraphSearchPolicy(nn.Module):
         if self.relation_only:
             self.action_dim = args.relation_dim
         else:
-            self.action_dim = args.entity_dim + args.relation_dim
+            # ================= newly added ===================
+            self.action_dim = args.entity_dim + args.relation_dim + 20
+            # ================= newly added ===================
         self.ff_dropout_rate = args.ff_dropout_rate
         self.rnn_dropout_rate = args.rnn_dropout_rate
         self.action_dropout_rate = args.action_dropout_rate
@@ -425,11 +427,12 @@ class GraphSearchPolicy(nn.Module):
     def get_agg_action_embedding(self, action, kg):
         r, e = action
         relation_embedding = kg.get_relation_embeddings(r)
+        entity_type_embeddings = kg.get_entity_type_embeddings(e)
         if self.relation_only:
             action_embedding = relation_embedding
         else:
             all_agg_embeds = kg.get_agg_entity_embeddings(e)
-            action_embedding = torch.cat([relation_embedding, all_agg_embeds], dim=-1)
+            action_embedding = torch.cat([relation_embedding, all_agg_embeds, entity_type_embeddings], dim=-1)
         return action_embedding
     # ================= newly added ===================
 

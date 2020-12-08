@@ -268,7 +268,12 @@ def prepare_kb_envrioment(
             else:
                 return "numerical"
         else:
-            return "entity"
+            # ================= newly added ===================
+            if "_" in e_name:
+                return e_name.split("_")[1]
+            else:
+                return "numerical"
+            # ================= newly added ===================
 
     def hist_to_vocab(_dict):
         return sorted(
