@@ -2,7 +2,35 @@
 This is the repository for COSI-241 final project.
 > Jingxuan Tu, Wei Lu
 
-## Resources
+### Requirements
+
+- python3 (tested on 3.6.6)
+- pytorch (tested on 0.4.1)
+
+### Installation
+
+``` bash
+python3 -m pip install -r requirements.txt
+```
+
+### Data Preparation
+
+Unpack the data files
+
+``` bash
+unzip data.zip
+```
+
+and there will be two datasets under folder `data`.
+
+``` bash
+# dataset mini-NE
+data/mini-NE
+
+```
+
+
+### Resources
 1. Original Work
     - MetaKGR: [Adapting Meta Knowledge Graph Information for Multi-Hop Reasoning over Few-Shot Relations](https://arxiv.org/pdf/1908.11513.pdf)
     - MetaKGR codebase: [https://github.com/THU-KEG/MetaKGR](https://github.com/THU-KEG/MetaKGR)
