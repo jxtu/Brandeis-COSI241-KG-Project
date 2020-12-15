@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
-data_dir="data/NE"
+data_dir="data/mini-NE"
 model="point.rs.distmult"
 group_examples_by_query="False"
 use_action_space_bucketing="True"
 
 bandwidth=256
-entity_dim=200
-relation_dim=200
-history_dim=200
+entity_dim=100
+relation_dim=100
+history_dim=100
 history_num_layers=3
 num_rollouts=20
 num_rollout_steps=3
@@ -31,8 +31,7 @@ beta=0.05
 relation_only="False"
 beam_size=512
 
-distmult_state_dict_path="model/NE-distmult-xavier-200-200-0.003-0.3-0.1/checkpoint-999.tar"
-conve_state_dict_path="model/NE-conve-RV-xavier-200-200-0.003-32-3-0.3-0.3-0.2-0.1/checkpoint-999.tar"
+distmult_state_dict_path="model/mini-NE-distmult-xavier-200-200-0.003-0.3-0.1/checkpoint-999.tar"
 
 num_paths_per_entity=-1
 margin=-1

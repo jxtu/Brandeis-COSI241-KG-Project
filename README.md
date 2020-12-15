@@ -21,13 +21,42 @@ Unpack the data files
 unzip data.zip
 ```
 
-and there will be two datasets under folder `data`.
+and there will be a dataset under folder `data`.
 
 ``` bash
 # dataset mini-NE
 data/mini-NE
 
 ```
+
+### Pretrain Knowledge Graph Embedding
+
+``` bash
+./experiment-emb.sh configs/NE-distmult.sh --train <gpu-ID>
+```
+
+`<gpu-ID>` is a non-negative integer number representing the GPU index.
+
+### Meta Learning
+
+``` bash
+./experiment-rs.sh configs/NE-rs.sh --train <gpu-ID> --few_shot
+```
+
+### Fast Adaptation
+
+``` bash
+./experiment-rs.sh configs/NE-rs.sh --train <gpu-ID> --adaptation --checkpoint_path model/mini-NE-point.rs.distmult-xavier-n/a-100-100-2-0.003-0.1-0.1-0.1-256-0.05/checkpoint-<Epoch>.tar
+```
+
+`<Epoch>` is a non-negative integer number representing the training epoch for meta-learning.
+### Test
+
+``` bash
+./experiment-rs.sh configs/NE-rs.sh --inference 1 --few_shot --checkpoint_path model/mini-NE-point.rs.distmult-xavier-n/a-100-100-2-0.003-0.1-0.1-0.1-256-0.05/checkpoint-<Epoch_Adapt>-[relation].tar
+```
+
+`<Epoch_Adapt>` is a non-negative integer number representing the training epoch for fast adaptation.
 
 
 ### Resources
