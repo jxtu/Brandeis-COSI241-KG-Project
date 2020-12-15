@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-data_dir="data/NE"
+data_dir="data/mini-NE"
 model="distmult"
 group_examples_by_query="True"
-entity_dim=200
-relation_dim=200
+entity_dim=100
+relation_dim=100
 num_rollouts=1
 bucket_interval=10
 num_epochs=1000

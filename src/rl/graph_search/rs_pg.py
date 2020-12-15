@@ -58,6 +58,10 @@ class RewardShapingPolicyGradient(PolicyGradient):
             fn_kg_state_dict = get_conve_kg_state_dict(fn_state_dict)
         else:
             raise NotImplementedError
+        # ================= newly added ===================
+        # added to make original embeddings work
+        fn_kg_state_dict["AGG_W"] = torch.nn.init.xavier_uniform_(torch.nn.Parameter(torch.zeros(400, 200)))
+        # ================= newly added ===================
         self.fn_kg.load_state_dict(fn_kg_state_dict)
         if fn_model == "hypere":
             complex_state_dict = torch.load(args.complex_state_dict_path)

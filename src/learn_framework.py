@@ -138,6 +138,7 @@ class LFramework(nn.Module):
 
             if few_shot and not emb:
                 for example_id in range(0, len(new_train_data), 2 * self.batch_size):
+                    print(f"current: {example_id}, total: {len(new_train_data)}")
                     self.optim.zero_grad()
                     mini_batch = new_train_data[
                         example_id : example_id + self.batch_size
@@ -145,6 +146,10 @@ class LFramework(nn.Module):
                     mini_batch_valid = new_train_data[
                         example_id + self.batch_size : example_id + 2 * self.batch_size
                     ]
+                    # ================= newly added ===================
+                    if not mini_batch_valid:
+                        mini_batch_valid = mini_batch.copy()
+                    # ================= newly added ===================
                     loss = self.meta_loss(mini_batch, mini_batch_valid)
                     loss["model_loss"].backward()
                     if self.grad_norm > 0:

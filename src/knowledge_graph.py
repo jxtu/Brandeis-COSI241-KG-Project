@@ -72,6 +72,7 @@ class KnowledgeGraph(nn.Module):
         self.num_graph_convolution_layers = args.num_graph_convolution_layers
         self.entity_embeddings = None
         self.relation_embeddings = None
+        self.entity_type_embeddings = None
         self.entity_img_embeddings = None
         self.relation_img_embeddings = None
         self.EDropout = None
@@ -87,8 +88,8 @@ class KnowledgeGraph(nn.Module):
             create_graph=not first_order,
         )
         return (
-            parameters_to_vector(filter(lambda p: p.requires_grad, self.parameters()))
-            - parameters_to_vector(grads) * step_size
+                parameters_to_vector(filter(lambda p: p.requires_grad, self.parameters()))
+                - parameters_to_vector(grads) * step_size
         )
 
     def load_few_shot(self, data_dir):
@@ -187,11 +188,11 @@ class KnowledgeGraph(nn.Module):
             return (int_var_cuda(r_space), int_var_cuda(e_space)), var_cuda(action_mask)
 
         def vectorize_unique_r_space(
-            unique_r_space_list, unique_r_space_size, volatile
+                unique_r_space_list, unique_r_space_size, volatile
         ):
             bucket_size = len(unique_r_space_list)
             unique_r_space = (
-                torch.zeros(bucket_size, unique_r_space_size) + self.dummy_r
+                    torch.zeros(bucket_size, unique_r_space_size) + self.dummy_r
             )
             for i, u_r_s in enumerate(unique_r_space_list):
                 for j, r in enumerate(u_r_s):
@@ -277,9 +278,9 @@ class KnowledgeGraph(nn.Module):
         add_object(self.dummy_e, self.dummy_e, self.dummy_r, all_objects)
         for file_name in ["raw.kb", "train.triples", "dev.triples", "test.triples"]:
             if (
-                "NELL" in self.args.data_dir
-                and self.args.test
-                and file_name == "train.triples"
+                    "NELL" in self.args.data_dir
+                    and self.args.test
+                    and file_name == "train.triples"
             ):
                 continue
             with open(os.path.join(data_dir, file_name)) as f:
@@ -378,6 +379,41 @@ class KnowledgeGraph(nn.Module):
     def get_entity_embeddings(self, e):
         return self.EDropout(self.entity_embeddings(e))
 
+    # ================= newly added ===================
+
+    def get_entity_type_embeddings(self, e):
+        e_types = []
+        e_shape = e.shape
+        for e_id in e.view(-1).cpu().numpy():
+            e_types.append(self.entity2typeid[int(e_id)])
+        e_types = torch.tensor(e_types).cuda().view(*e_shape)
+
+        return self.EDropout(self.entity_type_embeddings(e_types))
+
+    # ================= newly added ===================
+
+    # ================= newly added ===================
+    def get_agg_entity_embeddings(self, e):
+        def get_neighbor_embeddings(e1):
+            bucketids = self.entity2bucketid[e1].numpy()
+            e2s = self.action_space_buckets[bucketids[0]][0][1][bucketids[1]][..., :10]
+            r2s = self.action_space_buckets[bucketids[0]][0][0][bucketids[1]][..., :10]
+            rel_embeds = self.get_relation_embeddings(r2s)
+            ent_embeds = self.get_entity_embeddings(e2s)
+            cat_embeds = torch.cat([ent_embeds, rel_embeds], dim=1)
+            cat_embeds = torch.mean(cat_embeds, dim=0, keepdim=True)
+            return cat_embeds
+
+        all_agg_embeds = []
+        e_shape = e.shape
+        for e1 in e.view(-1):
+            cat_embeds = get_neighbor_embeddings(e1)
+            all_agg_embeds.append(cat_embeds)
+        all_agg_embeds = torch.tanh(torch.matmul(torch.cat(all_agg_embeds, dim=0).view(*e_shape, -1), self.AGG_W))
+        return all_agg_embeds
+
+    # ================= newly added ===================
+
     def get_all_relation_embeddings(self):
         return self.RDropout(self.relation_embeddings.weight)
 
@@ -403,8 +439,8 @@ class KnowledgeGraph(nn.Module):
         r_space = self.action_space[0][0][e_set_1D]
         e_space = self.action_space[0][1][e_set_1D]
         e_space = (
-            r_space.view(batch_size, -1) == r.unsqueeze(1)
-        ).long() * e_space.view(batch_size, -1)
+                          r_space.view(batch_size, -1) == r.unsqueeze(1)
+                  ).long() * e_space.view(batch_size, -1)
         e_set_out = []
         for i in range(len(e_space)):
             e_set_out_b = var_cuda(torch.unique(e_space[i].data))
@@ -423,6 +459,10 @@ class KnowledgeGraph(nn.Module):
     def define_modules(self):
         if not self.args.relation_only:
             self.entity_embeddings = nn.Embedding(self.num_entities, self.entity_dim)
+            # ================= newly added ===================
+            self.entity_type_embeddings = nn.Embedding(len(self.type2id), 20)
+            self.AGG_W = nn.Parameter(torch.zeros(self.entity_dim + self.relation_dim, self.entity_dim))
+            # ================= newly added ===================
             if self.args.model == "complex":
                 self.entity_img_embeddings = nn.Embedding(
                     self.num_entities, self.entity_dim
@@ -438,6 +478,10 @@ class KnowledgeGraph(nn.Module):
     def initialize_modules(self):
         if not self.args.relation_only:
             nn.init.xavier_normal_(self.entity_embeddings.weight)
+            # ================= newly added ===================
+            nn.init.xavier_normal_(self.entity_type_embeddings.weight)
+            nn.init.xavier_uniform_(self.AGG_W)
+            # ================= newly added ===================
         nn.init.xavier_normal_(self.relation_embeddings.weight)
 
     @property
